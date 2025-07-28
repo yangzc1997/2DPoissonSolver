@@ -1,4 +1,4 @@
-# ========== 基础配置 =========
+# ========== 基础配置 ======================================
 cmake_minimum_required(VERSION 3.16)
 project(PoissonSolvers 
         VERSION 1.2.0 
@@ -9,7 +9,7 @@ project(PoissonSolvers
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)  # PIC属性
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # 编译器警告设置
 if(MSVC)
@@ -25,7 +25,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# ======= 核心库 (重量库) ======
+# ======= 核心库 (重量库) =========================
 add_library(PoissonCore SHARED)
 
 # Windows 平台动态库导出控制
