@@ -1,6 +1,7 @@
 // BoundaryCondition.cpp
 #include "BoundaryCondition.h"
 #include "ExpressionEvaluator.h"
+#include "Core_Export.h"
 #include <cmath>
 #include <iostream>
 
@@ -90,3 +91,4 @@ void BoundaryCondition::processBoundaryConditions()
 }
 
 } // namespace Poisson
+
