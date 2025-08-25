@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <cmath> 
 #include "../src/ExpressionEvaluator.h"
 
 namespace Poisson {
@@ -22,9 +23,10 @@ TEST(ExpressionEvaluatorTest, UxyExpression) {
 }
 
 TEST(ExpressionEvaluatorTest, InvalidExpression) {
-    // 无效表达式应该返回0
+    // 无效表达式应该返回 NaN
     ExpressionEvaluator eval("invalid!expression");
-    EXPECT_DOUBLE_EQ(eval.evaluate_xy(1.0, 2.0), 0.0);
+    double result = eval.evaluate_xy(1.0, 2.0);
+    EXPECT_TRUE(std::isnan(result));
 }
 
 TEST(ExpressionEvaluatorTest, BoundaryPiecewiseFunction) {

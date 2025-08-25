@@ -1,0 +1,25 @@
+{
+  "mesh": {
+    "lx": 2.0,
+    "ly": 1.0,
+    "Nx": 10,
+    "Ny": 5,
+    "type": "3"
+  },
+  "boundary_conditions": {
+    "AD": "1", 
+    "BC": {"value":"2", "range":[0, 100]}
+  },
+  "functions":{
+    "initial_guess": "exp(-x-y)",
+    "source": "exp(-u)",
+    "source_derivatives": "-exp(-u)"
+  },
+  "solver_setting": {
+    "solver_type": "sparse",
+    "rel_tol": 1e-3,
+    "abs_tol": 1e-3,
+    "max_iter": 10
+  },
+  "output_file": "./results.vtk"
+}

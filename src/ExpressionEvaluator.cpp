@@ -4,7 +4,6 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
-#include <cmath>
 
 namespace Poisson{
 
@@ -36,10 +35,11 @@ std::function<double(double, double, double)> ExpressionEvaluator::parse_express
     expression.register_symbol_table(symbol_table);
     if (!parser.compile(expr_str, expression)) {
         if (!expr_str.empty()){
-            std::cerr << "警告: 请确认源函数/边界条件/初始解函数是否正确:'" << expr_str << "'\n";
+            std::cerr << "警告: 请确认源函数/边界条件/初始解函数是否正确:['" << expr_str << "]'\n";
             std::cerr << "提示: 只能使用 u, x, y 作为变量，支持标准数学函数\n";
         }
-        return [] (double u_val, double x_val, double y_val) { return 0.0; };  // 返回一个默认值的函数
+        // return [] (double u_val, double x_val, double y_val) { return 0.0; };  // 返回一个值为0的默认函数
+       return [] (double u_val, double x_val, double y_val) {return std::numeric_limits<double>::quiet_NaN(); }; // 返回 NAN
     }
     
         // 返回可执行的函数

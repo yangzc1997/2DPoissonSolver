@@ -3,114 +3,110 @@
 #define ELEMENT_CALCULATOR_H
 
 #include "Core_Export.h"
+#include <eigen3/Eigen/Dense>
 #include <vector>
 #include <functional>
-#include <eigen3/Eigen/Dense>
-#include <boost/math/quadrature/gauss.hpp>
 
 namespace Poisson {
+
+using namespace Eigen;
+using vec_t = Eigen::VectorXd;
+using vec_t2 = Eigen::Vector2d;
+using mat_t = Eigen::MatrixXd;
+using mat_t2 = Eigen::Matrix<double, Eigen::Dynamic, 2>;
+using NodeCoords = std::vector<Eigen::Vector2d>;
+using func_uxy = std::function<double(double u_val, double x_val, double y_val)>; // 源函数及其导数
+
+// 高斯积分点结构体
+struct GaussPoint {
+    double s;
+    double t;
+    double weight;
+};
 
 /// @class ElementCalculator
 /// @brief 单元计算器基类
 class POISSONCORE_API ElementCalculator {
 public:
+    ElementCalculator(int defaultOrder) : integrationOrder(defaultOrder) {}
+    
     virtual ~ElementCalculator() = default;
     
-    // 纯虚函数接口
-    virtual double jacobian(const std::vector<double>& x_coords, 
-                          const std::vector<double>& y_coords) const = 0;
+    /// @brief 计算形函数向量
+    virtual vec_t shapeFunction(double s, double t) const = 0;
     
-    virtual double u_value(const Eigen::VectorXd& global_u, 
-                          const std::vector<int>& element, 
-                          double param1, double param2) const;
-                          
-    virtual Eigen::Vector2d u_gradient(const Eigen::VectorXd& global_u, 
-                                     const std::vector<int>& element,
-                                     const std::vector<double>& x_coords, 
-                                     const std::vector<double>& y_coords,
-                                     double param1, double param2) const;
+    /// @brief 计算形函数梯度矩阵
+    virtual mat_t2 shapeFunctionGradient(double s, double t) const = 0;
     
-    virtual double shape_function(int i, double param1, double param2) const = 0;
-                                
-    virtual Eigen::Vector2d shape_gradient(int i, 
-                                         const std::vector<double>& x_coords, 
-                                         const std::vector<double>& y_coords,
-                                         double param1, double param2) const = 0;
+    /// @brief 计算实空间坐标
+    virtual vec_t2 getPhysicalCoordinates(const NodeCoords& coords,double s, double t) const = 0;
     
-    // 积分方法
-    virtual double integrate(const std::vector<double>& x_coords,
-                            const std::vector<double>& y_coords,
-                            const std::function<double(double, double)>& func) const = 0;
+    /// @brief 计算坐标变换雅可比矩阵
+    virtual mat_t2 jacobian(const NodeCoords& coords) const = 0;
+    
+    /// @brief 设置积分阶数
+    virtual void setIntegrationOrder(int order) = 0;
 
+    /// @brief 获取高斯积分点
+    std::vector<GaussPoint> gaussPoints() const;
+
+    /// @brief 计算单元刚度矩阵
+    mat_t computeStiffnessMatrix( const NodeCoords& coords, const func_uxy& source_derivativesFunc, const vec_t& local_u) const;
     
+    /// @brief 计算单元载荷向量
+    vec_t computeLoadVector(const NodeCoords& coords, const func_uxy& sourceFunc, const vec_t& local_u) const;
+
+    // @brief 同时计算单元载荷向量和刚度矩阵
+    std::pair<mat_t, vec_t> computeElementMatrixAndVector(
+        const NodeCoords& coords,
+        const func_uxy& sourceFunc,
+        const func_uxy& source_derivativesFunc,
+        const vec_t& local_u) const;
+
 protected:
-    //提供一个二维积分器
-    template<unsigned N1 = 20, unsigned N2 = 20>
-    double integrate2D(
-        double x0,
-        double x1,
-        const std::function<double(double)>& y0,
-        const std::function<double(double)>& y1,
-        const std::function<double(double, double)>& func,
-        bool check_bounds = false
-    ) const
-    {
-        using OuterRule = boost::math::quadrature::gauss<double, N1>;
-        using InnerRule = boost::math::quadrature::gauss<double, N2>;
+    int integrationOrder;
+    std::vector<GaussPoint> gaussPointsCache;
 
-        auto inner_integral = [&](double x) {
-            const double a = y0(x);
-            const double b = y1(x);
-            if (check_bounds && a >= b)
-                return 0.0;
-
-            return InnerRule::integrate(
-                [x, &func](double y) {return func(x, y);},a,b
-            );
-        };
-
-        return OuterRule::integrate(inner_integral, x0, x1);
-    }
-    
+    // 生成积分点
+    virtual void generateGaussPoints2D(int order) = 0;
 };
-
 
 // ====================== 三角形计算器 ====================== //
 class POISSONCORE_API TriangleCalculator : public ElementCalculator {
 public:
-    // 实现所有虚函数
-    double jacobian(const std::vector<double>& x_coords, 
-                   const std::vector<double>& y_coords) const override;
-    
-    double shape_function(int i, double x, double y) const override;
-                         
-    Eigen::Vector2d shape_gradient(int i, 
-                                  const std::vector<double>& x_coords, 
-                                  const std::vector<double>& y_coords,
-                                  double x, double y) const override;
-    
-    double integrate(const std::vector<double>& x_coords,
-                    const std::vector<double>& y_coords,
-                    const std::function<double(double, double)>& func) const override;
-};
+    TriangleCalculator();
 
+    vec_t shapeFunction(double s, double t) const override;
+
+    mat_t2 shapeFunctionGradient(double s, double t) const override;
+
+    vec_t2 getPhysicalCoordinates(const NodeCoords& coords, double s, double t) const override;
+
+    mat_t2 jacobian(const NodeCoords& coords) const override;
+
+    void setIntegrationOrder(int order) override;
+
+private:
+    void generateGaussPoints2D(int order) override;
+};
 
 // ====================== 四边形计算器 ====================== //
 class POISSONCORE_API RectangleCalculator : public ElementCalculator {
 public:
-    double jacobian(const std::vector<double>& x_coords, 
-                    const std::vector<double>& y_coords) const override;
+    RectangleCalculator(); 
+
+    vec_t shapeFunction(double s, double t) const override;
     
-    double shape_function(int i, double s, double t) const override;
-                                
-    Eigen::Vector2d shape_gradient(int i, 
-                                 const std::vector<double>& x_coords, 
-                                 const std::vector<double>& y_coords,
-                                 double s, double t) const override;
+    mat_t2 shapeFunctionGradient(double s, double t) const override;
+
+    vec_t2 getPhysicalCoordinates(const NodeCoords& coords, double s, double t) const override;
     
-    double integrate(const std::vector<double>& x_coords,
-                    const std::vector<double>& y_coords,
-                    const std::function<double(double, double)>& func) const override;
+    mat_t2 jacobian(const NodeCoords& coords) const override;
+
+    void setIntegrationOrder(int order) override;
+    
+private:
+    void generateGaussPoints2D(int order) override;
 };
 
 } // namespace Poisson

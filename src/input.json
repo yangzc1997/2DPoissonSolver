@@ -4,11 +4,11 @@
     "ly": 1.0,
     "Nx": 20,
     "Ny": 10,
-    "type": "3"
+    "type": "4"
   },
   "boundary_conditions": {
-    "AD": "2",
-    "BC": "1"
+    "AD": "1", 
+    "BC": "2"
   },
   "functions":{
     "initial_guess": "exp(-x-y)",
@@ -16,10 +16,10 @@
     "source_derivatives": "-exp(-u)"
   },
   "solver_setting": {
-    "solver_type": "dense",
+    "solver_type": "sparse",
     "rel_tol": 1e-3,
     "abs_tol": 1e-3,
-    "max_iter": 20
+    "max_iter": 10
   },
   "output_file": "./results.vtk"
 }

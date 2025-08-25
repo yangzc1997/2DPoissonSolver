@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <filesystem>
 
 namespace Poisson{
 
@@ -15,13 +16,10 @@ POISSONCORE_API void print_help();
 /// @param argc main函数系统交互参数
 /// @param argv main函数系统交互参数
 /// @return 输入文件名
-POISSONCORE_API std::string check_help(int argc, char* argv[]);
+POISSONCORE_API std::filesystem::path check_help(int argc, char* argv[]);
 
 /// @brief 输出输入文件样例
-POISSONCORE_API void output_input_sample(const std::string& filename);
-
-/// @brief 创建目录（跨平台方法）
-POISSONCORE_API bool create_directory(const std::string& path);
+POISSONCORE_API void output_input_sample(const std::filesystem::path& filename);
 
 } // namespace Poisson
 

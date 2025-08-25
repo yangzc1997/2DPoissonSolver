@@ -1,7 +1,7 @@
-# ========== 基础配置 ======================================
+# ========== 基础配置 =========
 cmake_minimum_required(VERSION 3.16)
 project(PoissonSolvers 
-        VERSION 1.2.0 
+        VERSION 1.5.0
         LANGUAGES CXX
         DESCRIPTION "Finite Element Method for 2D Poisson Equation")
 
@@ -9,11 +9,11 @@ project(PoissonSolvers
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON) 
 
-# 编译器警告设置
+# 编译器警告设置(需要针对文件进行设置)
 if(MSVC)
-    add_compile_options(/W4 /WX /permissive-)
+    # add_compile_options(/W4 /WX /permissive-)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
     add_compile_options(-Wall -pedantic -fdiagnostics-color=always)
@@ -25,7 +25,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# ======= 核心库 (重量库) =========================
+# ======= 核心库 (重量库) ======
 add_library(PoissonCore SHARED)
 
 # Windows 平台动态库导出控制
@@ -35,24 +35,24 @@ endif()
 
 # 使用 target_sources 添加源文件
 target_sources(PoissonCore PRIVATE
-    src/ReadInput.cpp
-    src/ReadInput.h
     src/Timer.cpp
     src/Timer.h
     src/Help.cpp
     src/Help.h
+    src/ReadInputData.cpp
+    src/ReadInputData.h
     src/Mesh.cpp
     src/Mesh.h
     src/ExpressionEvaluator.cpp
     src/ExpressionEvaluator.h
     src/ElementCalculator.cpp
     src/ElementCalculator.h
-    src/PoissonSolverBase.cpp
-    src/PoissonSolverBase.h
-    src/PoissonSolverDense.cpp
-    src/PoissonSolverDense.h
-    src/PoissonSolverSparse.cpp
-    src/PoissonSolverSparse.h
+    src/PoissonSolver.cpp
+    src/PoissonSolver.h
+    src/BoundaryCondition.cpp
+    src/BoundaryCondition.h
+    src/RunPoissonSolver.cpp
+    src/RunPoissonSolver.h
     src/Core_Export.h
 )
 
@@ -83,7 +83,8 @@ FetchContent_MakeAvailable(googletest)
 file(GLOB TEST_SOURCES CONFIGURE_DEPENDS 
     ./test/test_ExpressionEvaluator.cpp  
     ./test/test_Mesh.cpp  
-    ./test/test_ReadInput.cpp
+    ./test/test_ReadInputData.cpp
+    ./test/test_ElementCalculator.cpp
     )
 add_executable(PoissonTests ${TEST_SOURCES})
 target_link_libraries(PoissonTests PRIVATE PoissonCore gtest_main)

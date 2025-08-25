@@ -11,14 +11,15 @@ namespace Poisson{
 /// @brief 计时器
 class POISSONCORE_API Timer {
 public:
-    // 接口声明
+    Timer() = default;
+    ~Timer() = default;
+
     void start();
     void pause();
     void reset();
     void print_time();
     std::string format() const;
 
-    // 模板方法必须在头文件中实现
     template <typename Unit = std::chrono::milliseconds>
     typename Unit::rep elapsed() const {
         if (m_running) {

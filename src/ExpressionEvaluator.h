@@ -5,6 +5,8 @@
 #include "Core_Export.h"
 #include <functional>
 #include <string>
+#include <cmath>
+#include <limits>
 #include "../lib/exprtk.hpp"  // 引入 exprtk 库
 
 
@@ -17,6 +19,8 @@ public:
     /// @param expr_str 字符串表达式
     /// @param expression_type 表达式类型(u/xy/uxy表达式)
     ExpressionEvaluator(const std::string& expr_str);
+
+    ~ExpressionEvaluator() = default;
 
     /// @brief 计算表达式值
     double evaluate(double u = 0.0, double x = 0.0, double y = 0.0) const;
