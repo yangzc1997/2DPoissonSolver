@@ -4,6 +4,7 @@
 #define BOUNDARY_CONDITION_H
 
 #include "ReadInputData.h"
+#include "Core_Export.h"
 #include "Mesh.h"
 #include <vector>
 #include <memory>
@@ -39,5 +40,6 @@ private:
 };
 
 } // namespace Poisson
+
 
 #endif // BOUNDARY_CONDITION_H
