@@ -43,16 +43,16 @@ target_sources(PoissonCore PRIVATE
     src/ReadInputData.h
     src/Mesh.cpp
     src/Mesh.h
-    src/ExpressionEvaluator.cpp
-    src/ExpressionEvaluator.h
-    src/ElementCalculator.cpp
-    src/ElementCalculator.h
+    src/FiniteElementCalculator.cpp
+    src/FiniteElementCalculator.h
     src/PoissonSolver.cpp
     src/PoissonSolver.h
-    src/BoundaryCondition.cpp
-    src/BoundaryCondition.h
+    src/BoundaryData.h
     src/RunPoissonSolver.cpp
     src/RunPoissonSolver.h
+    src/Auxiliary_module.cpp
+    src/Auxiliary_module.h
+    src/PoissonSolver_FiniteElementData.h
     src/Core_Export.h
 )
 

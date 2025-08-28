@@ -2,9 +2,9 @@
 #include "ReadInputData.h"
 #include "../lib/json.hpp"
 #include "Core_Export.h"
+#include <stdexcept>
 #include <iostream>
-#include <sstream>
-#include <fstream>
+#include <array>
 
 using json = nlohmann::json;
 
@@ -123,10 +123,10 @@ ReadInputData::ReadInputData(const std::filesystem::path& jsonPath) {
             auto [cd_val, cd_range] = parse_edge(boundary_obj, "CD", default_x_range, true); // x方向
             
             // 创建边界条件对象
-            bc = BoundaryConditionData(ab_val, ab_range, ad_val, ad_range, bc_val, bc_range, cd_val, cd_range);
+            bc = BoundaryConditionInfo(ab_val, ab_range, ad_val, ad_range, bc_val, bc_range, cd_val, cd_range);
         
         } else {
-            bc = BoundaryConditionData("", {0.0, lx}, "", {0.0, ly}, "", {0.0, ly}, "", {0.0, lx});
+            bc = BoundaryConditionInfo("", {0.0, lx}, "", {0.0, ly}, "", {0.0, ly}, "", {0.0, lx});
             std::cout << "  警告：未配置边界条件，所有边界均为自由边界！" << std::endl;
         }
 

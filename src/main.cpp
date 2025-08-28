@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
         // 输出开头信息
         std::string outstr(80,'=');
         std::cout << outstr << std::endl;
-        std::cout << "欢迎使用有限单元法求解非线性泊松方程程序!" << std::endl;
+        std::cout << "欢迎使用有限单元法求解非线性泊松方程程序!\n" << std::endl;
 
         // 处理初始化信息                        
         std::filesystem::path jsonPath = "input.json";

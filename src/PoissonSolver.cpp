@@ -3,30 +3,33 @@
 #include "PoissonSolver.h"
 #include "Core_Export.h"
 #include <iostream>
+#include <fstream>
 #include <cmath>
 #include <unordered_set>
 
 namespace Poisson {
 
-    using namespace Eigen;
-    using smat_t = Eigen::SparseMatrix<double>;
-    using vec_t = Eigen::VectorXd;
-    using mat_t = Eigen::MatrixXd;
-    using NodeCoords = std::vector<Eigen::Vector2d>;
-
 /// @brief 使用有限元方法求解二维非线性泊松方程的求解器
-/// @param read_input 输入文件读取类实例
-/// @param mesh 网格生成类实例
-PoissonSolver::PoissonSolver(const ReadInputData& read_input, const Mesh& mesh, const vec_t& u0, const std::vector<int>& DirichletNodeIDs)
-    : read_input(read_input),
-      mesh(mesh),
-      u(u0),
-      dirichlet_nodes(DirichletNodeIDs),
-      func_source(read_input.source),
-      func_source_derivatives(read_input.source_derivatives)
+PoissonSolver::PoissonSolver(
+            const std::string& mesh_type_,
+            const Mesh& mesh_, const vec_t& u_, 
+            const std::vector<int>& dirichlet_nodes_,
+            const fuxy& source_func, const fuxy& source_deriv_func,
+            int max_iter_, double rel_tol_,
+            double abs_tol_, const std::string& output_file)   
+    : mesh_type(mesh_type_),
+      mesh(mesh_),
+      u(u_),
+      dirichlet_nodes(dirichlet_nodes_),
+      sourceFunc(source_func),
+      sourceDerivFunc(source_deriv_func),
+      max_iter(max_iter_),
+      rel_tol(rel_tol_),
+      abs_tol(abs_tol_),
+      output_file(output_file)
 {
     // 根据网格类型选择计算器
-    if (read_input.mesh_type == "4") {
+    if (mesh_type == "4") {
         element_calculator = std::make_unique<RectangleCalculator>();
     } else {
         element_calculator = std::make_unique<TriangleCalculator>();
@@ -43,7 +46,7 @@ PoissonSolver::PoissonSolver(const ReadInputData& read_input, const Mesh& mesh, 
     std::vector<Triplet<double>> triplets;
     triplets.reserve(num_nodes*8);
     for (const auto& element : mesh.elements) {
-        const int n_elemNode = element.numNodes();
+        const int n_elemNode = element.get_num_nodes();
         for (int i = 0; i < n_elemNode; i++){
             const int i_idx = element.nodePtrs[i]->id;
             for (int j = 0; j < n_elemNode; j++){
@@ -64,7 +67,7 @@ bool PoissonSolver::solveByNewtonMethod()
     const std::string header(60, '-');
     
     // 牛顿迭代过程
-    while (iter <= read_input.max_iter) {
+    while (iter <= max_iter) {
         calAndAssembleGlobalSystem();
         
         // 求增量
@@ -75,11 +78,11 @@ bool PoissonSolver::solveByNewtonMethod()
         
         // 误差计算
         double step_abs_tol = f.norm();
-        double step_rel_tol = delta_u.norm() / (read_input.rel_tol*1e-2 + u.norm());
+        double step_rel_tol = delta_u.norm() / (rel_tol*1e-2 + u.norm());
         
         Iter_print(iter, step_abs_tol, step_rel_tol, header);
         
-        if (step_rel_tol < read_input.rel_tol && step_abs_tol < read_input.abs_tol) {
+        if (step_rel_tol < rel_tol && step_abs_tol < abs_tol) {
             std::cout << "\n注意：牛顿迭代已收敛！迭代次数: " << iter << std::endl;
             std::cout << header << std::endl;
             return true;
@@ -87,8 +90,8 @@ bool PoissonSolver::solveByNewtonMethod()
         iter++;
     }
 
-    if (iter > read_input.max_iter) {
-        std::cout << "\n注意：未收敛！！！达到设定最大迭代次数(" << read_input.max_iter << ")" << std::endl;  
+    if (iter >max_iter) {
+        std::cout << "\n注意：未收敛！！！达到设定最大迭代次数(" << max_iter << ")" << std::endl;  
         std::cout << header << std::endl;
     }
 
@@ -102,22 +105,13 @@ void PoissonSolver::calAndAssembleGlobalSystem()
     K.setZero();
     f.setZero();
 
-    // 创建函数对象(方便解耦单元类和字符串转函数类)
-    func_uxy sourceFunc = [&](double u_val, double x_val, double y_val) {
-        return func_source.evaluate_uxy(u_val, x_val, y_val);
-    };
-    
-    func_uxy sourceDerivFunc = [&](double u_val, double x_val, double y_val) {
-        return func_source_derivatives.evaluate_uxy(u_val, x_val, y_val);
-    };
-    
     // 遍历所有单元
     for (const auto& element : mesh.elements) {
-        const int num_nodes = element.numNodes();
+        const int num_nodes = element.get_num_nodes();
         
         // 获取单元节点坐标和局部解向量
-        NodeCoords coords;
         vec_t local_u(num_nodes);
+        NodeCoords coords;
         for (int i = 0; i < num_nodes; ++i) {
             const int node_idx = element.nodePtrs[i]->id;
             coords.push_back(Vector2d(element.nodePtrs[i]->x, element.nodePtrs[i]->y));
@@ -205,7 +199,7 @@ void PoissonSolver::Iter_print(int iter, double step_abs_tol, double step_rel_to
 // 输出计算结果到文件中
 void PoissonSolver::output_results() const
 {
-    const std::string& filename = read_input.output_file; 
+    const std::string& filename = output_file; 
     std::ofstream file(filename);
     if (!file.is_open()) {
         std::cerr << "无法打开文件: " << filename << std::endl;
@@ -222,8 +216,7 @@ void PoissonSolver::output_results() const
 
     // 2. 写入点数据
     file << "POINTS " << mesh.nodes.size() << " double\n";
-    for (const auto& node_ptr : mesh.nodes) {
-        const auto& node = *node_ptr; // 解引用智能指针
+    for (const auto& node : mesh.nodes) {
         file << node.x << " " << node.y << " 0.0" << "\n";
     }
 
@@ -231,13 +224,13 @@ void PoissonSolver::output_results() const
     const auto& cells = mesh.elements;
     size_t total_cell_size = 0;
     for (const auto& cell : cells) {
-        total_cell_size += cell.numNodes() + 1;
+        total_cell_size += cell.get_num_nodes() + 1;
     }
     
     file << "CELLS " << cells.size() << " " << total_cell_size << "\n";
     for (const auto& cell : cells) {
-        file << cell.numNodes();
-        for (int i = 0; i < cell.numNodes(); i++) {
+        file << cell.get_num_nodes();
+        for (int i = 0; i < cell.get_num_nodes(); i++) {
             const int node_id = cell.nodePtrs[i]->id; // 使用节点ID
             file << " " << node_id;
         }
@@ -247,7 +240,7 @@ void PoissonSolver::output_results() const
     // 4. 写入单元类型
     file << "CELL_TYPES " << cells.size() << "\n";
     for (size_t i = 0; i < cells.size(); i++) {
-        if (cells[i].numNodes() == 4) {
+        if (cells[i].get_num_nodes() == 4) {
             file << "9\n"; // VTK_QUAD
         } else {
             file << "5\n"; // VTK_TRIANGLE
@@ -283,7 +276,7 @@ void PoissonSolver::print_results(int max_display) const
     std::unordered_set<int> dirichlet_nodes_set(dirichlet_nodes.begin(), dirichlet_nodes.end()); // 方便后续查找
 
     for (int i = 0; i < u.size(); i += step) {
-        const auto& node = *(mesh.nodes[i]);
+        const auto& node = mesh.nodes[i];
         bool is_boundary = (dirichlet_nodes_set.find(i) != dirichlet_nodes_set.end());
         
         std::cout << std::setw(10) << i
