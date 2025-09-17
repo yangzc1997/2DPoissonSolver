@@ -11,16 +11,16 @@
 
 namespace Poisson{
 
-class POISSONCORE_API RunPoissonSolver{
+class RunPoissonSolver{
 public:
-    explicit RunPoissonSolver(const std::filesystem::path& jsonPath);
+    POISSONCORE_API explicit RunPoissonSolver(const std::filesystem::path& jsonPath);
     
     RunPoissonSolver(const RunPoissonSolver&) = delete;
     RunPoissonSolver& operator=(const RunPoissonSolver&) = delete;
     ~RunPoissonSolver() = default;
 
-    bool readFromJson();
-    bool simulate();
+    POISSONCORE_API bool readFromJson();
+    POISSONCORE_API bool simulate();
 
 private:
     std::filesystem::path m_jsonPath;

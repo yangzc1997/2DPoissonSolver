@@ -2,7 +2,6 @@
 #ifndef POISSON_SOLVER_H
 #define POISSON_SOLVER_H
 
-#include "Core_Export.h"
 #include "FiniteElementCalculator.h"
 #include "Mesh.h"
 #include "PoissonSolver_FiniteElementData.h"
@@ -12,23 +11,20 @@
 #include <memory>
 #include <functional>
 #include <iomanip>
+#include "UsingAlias.h"
+#include "Auxiliary_Integrate2DLegendre.h"
 
 namespace Poisson {
 
-    using namespace Eigen;
-    using smat_t = Eigen::SparseMatrix<double>;
-    using vec_t = Eigen::VectorXd;
-    using mat_t = Eigen::MatrixXd;
-    using NodeCoords = std::vector<Eigen::Vector2d>;
-    using fuxy = std::function<double(double u_val, double x_val, double y_val)>;
+    using FiniteElementDataSet = std::vector<FiniteElementData>;
+    using GaussPoints = std::vector<Auxiliary::Integrate2DLegendre::GaussPoint>;
 
 /// @class PoissonSolverBase
 /// @brief 泊松求解器
-class POISSONCORE_API PoissonSolver {
+class PoissonSolver {
 public:
     PoissonSolver(
-            const std::string& mesh_type_,
-            const Mesh& mesh_, const vec_t& u_, 
+            const FiniteElementDataSet& feDataSet_, const vec_t& u_, 
             const std::vector<int>& dirichlet_nodes_,
             const fuxy& source_func, const fuxy& source_deriv_func,
             int max_iter_, double rel_tol_,
@@ -47,8 +43,7 @@ public:
     void print_results(int max_display = 20) const;
 
 private:
-    const std::string mesh_type;
-    const Mesh& mesh;
+    const FiniteElementDataSet& feDataSet;
     vec_t u;  
     const std::vector<int> dirichlet_nodes; ///< Dirichlet边界节点集合,
     fuxy sourceFunc;
@@ -61,12 +56,11 @@ private:
     vec_t f;                    ///< 载荷向量
     smat_t K;                   ///< 刚度矩阵
 
-    std::unique_ptr<FiniteElementCalculator> element_calculator;
-    
-    int integration_order = 7; ///< 积分阶数
+    std::unique_ptr<FiniteElementCalculator> element_calculator = nullptr;
 
     // 全局向量和矩阵的计算与组装
-    void calAndAssembleGlobalSystem();
+    void calAndAssembleGlobalSystem(const GaussPoints& triangleGaussPoints, 
+    const GaussPoints& rectangleGaussPoints);
 
     // 单元向量和矩阵组装
     void applyBoundaryCondition();

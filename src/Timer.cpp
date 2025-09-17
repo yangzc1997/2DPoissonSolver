@@ -1,6 +1,5 @@
 // Timer.cpp
 #include "Timer.h"
-#include "Core_Export.h"
 #include <iostream>
 
 namespace Poisson{

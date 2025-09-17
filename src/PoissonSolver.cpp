@@ -1,24 +1,23 @@
 // PoissonSolver.cpp
 
 #include "PoissonSolver.h"
-#include "Core_Export.h"
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace Poisson {
-
+    using namespace Eigen;
+    
 /// @brief 使用有限元方法求解二维非线性泊松方程的求解器
 PoissonSolver::PoissonSolver(
-            const std::string& mesh_type_,
-            const Mesh& mesh_, const vec_t& u_, 
+            const FiniteElementDataSet& feDataSet_, const vec_t& u_, 
             const std::vector<int>& dirichlet_nodes_,
             const fuxy& source_func, const fuxy& source_deriv_func,
             int max_iter_, double rel_tol_,
             double abs_tol_, const std::string& output_file)   
-    : mesh_type(mesh_type_),
-      mesh(mesh_),
+    : feDataSet(feDataSet_),
       u(u_),
       dirichlet_nodes(dirichlet_nodes_),
       sourceFunc(source_func),
@@ -28,16 +27,12 @@ PoissonSolver::PoissonSolver(
       abs_tol(abs_tol_),
       output_file(output_file)
 {
-    // 根据网格类型选择计算器
-    if (mesh_type == "4") {
-        element_calculator = std::make_unique<RectangleCalculator>();
-    } else {
-        element_calculator = std::make_unique<TriangleCalculator>();
+    if (feDataSet.empty()) {
+        throw std::runtime_error("错误：有限元数据集为空");
     }
-    element_calculator->setIntegrationOrder(integration_order); // 设置单元积分阶数
     
     // 初始化载荷向量
-    const int num_nodes = mesh.nodes.size();
+    const int num_nodes = u.size(); // 使用初始解向量大小
     f.setZero(num_nodes);
 
     // 初始化刚度矩阵
@@ -45,16 +40,17 @@ PoissonSolver::PoissonSolver(
     // K.reserve(VectorXi::Constant(num_nodes, 8)); // 三角形网格点最多有8个近邻
     std::vector<Triplet<double>> triplets;
     triplets.reserve(num_nodes*8);
-    for (const auto& element : mesh.elements) {
-        const int n_elemNode = element.get_num_nodes();
-        for (int i = 0; i < n_elemNode; i++){
-            const int i_idx = element.nodePtrs[i]->id;
-            for (int j = 0; j < n_elemNode; j++){
-                const int j_idx = element.nodePtrs[j]->id;
+    for (const auto& elemData : feDataSet) {
+        const int n_nodes = elemData.DofIndexs.size();
+        for (int i = 0; i < n_nodes; i++) {
+            const int i_idx = elemData.DofIndexs[i];
+            for (int j = 0; j < n_nodes; j++) {
+                const int j_idx = elemData.DofIndexs[j];
                 triplets.emplace_back(i_idx, j_idx, 1.0);
             }
         }
     }
+
     K.setFromTriplets(triplets.begin(), triplets.end());
 }
 
@@ -65,10 +61,23 @@ bool PoissonSolver::solveByNewtonMethod()
     int iter = 0;
     vec_t delta_u = vec_t::Zero(u.size());
     const std::string header(60, '-');
+
+    // 根据网格类型选择计算器
+    const int num_nodes_per_element = feDataSet[0].DofIndexs.size();
+    if (num_nodes_per_element == 4) {
+        element_calculator = std::make_unique<RectangleCalculator>();
+    } else {
+        element_calculator = std::make_unique<TriangleCalculator>();
+    }
+
+    // 获取高斯积分点
+    int integration_order = 7; ///< 积分阶数
+    const auto& triangleGaussPoints = Auxiliary::Integrate2DLegendre::generateTriangleGaussPoints(integration_order);
+    const auto& rectangleGaussPoints = Auxiliary::Integrate2DLegendre::generateRectangleGaussPoints(integration_order);
     
     // 牛顿迭代过程
     while (iter <= max_iter) {
-        calAndAssembleGlobalSystem();
+        calAndAssembleGlobalSystem(triangleGaussPoints, rectangleGaussPoints);   // 出于可能有混合网格的考虑先提供两种单元的积分点，不过组装器目前还没考虑两种单元混合的计算
         
         // 求增量
         SparseLU<SparseMatrix<double>> solver;
@@ -100,37 +109,40 @@ bool PoissonSolver::solveByNewtonMethod()
 
 
 // 全局矩阵和向量的计算与组装
-void PoissonSolver::calAndAssembleGlobalSystem() 
+void PoissonSolver::calAndAssembleGlobalSystem(const GaussPoints& triangleGaussPoints, 
+    const GaussPoints& rectangleGaussPoints)
 {
     K.setZero();
     f.setZero();
 
     // 遍历所有单元
-    for (const auto& element : mesh.elements) {
-        const int num_nodes = element.get_num_nodes();
+    for (const auto& elemData : feDataSet) {
+        const int num_nodes = elemData.DofIndexs.size();
         
         // 获取单元节点坐标和局部解向量
         vec_t local_u(num_nodes);
-        NodeCoords coords;
+        NodeCoords coords = elemData.NodeCoords;
         for (int i = 0; i < num_nodes; ++i) {
-            const int node_idx = element.nodePtrs[i]->id;
-            coords.push_back(Vector2d(element.nodePtrs[i]->x, element.nodePtrs[i]->y));
+            const int node_idx = elemData.DofIndexs[i];
             local_u(i) = u(node_idx);
         }
+
+        // 根据单元类型选择积分点
+        GaussPoints gsPoints =  (num_nodes == 4) ? rectangleGaussPoints : triangleGaussPoints;
         
         // 计算单元矩阵和向量
         auto [K_local, F_local] = element_calculator->computeElementMatrixAndVector(
-            coords, sourceFunc, sourceDerivFunc, local_u
+            coords, sourceFunc, sourceDerivFunc, local_u, gsPoints
         );
         // mat_t K_local = element_calculator->computeStiffnessMatrix(coords, sourceDerivFunc, local_u);
         // vec_t F_local = element_calculator->computeLoadVector(coords, sourceFunc, local_u);
    
         // 组装到全局系统
         for (int i_local = 0;  i_local < num_nodes; ++i_local) {
-            const int global_i = element.nodePtrs[i_local]->id;            
+            const int global_i = elemData.DofIndexs[i_local];            
             f(global_i) += F_local(i_local);
             for (int j_local = 0; j_local < num_nodes; ++j_local) {
-                const int global_j = element.nodePtrs[j_local]->id;
+                const int global_j = elemData.DofIndexs[j_local];
                 K.coeffRef(global_i, global_j) += K_local(i_local, j_local);  
             }
         }
@@ -208,46 +220,53 @@ void PoissonSolver::output_results() const
 
     std::cout << "\n计算结果储存文件为: " << filename << std::endl;
 
-    // 1. 写入VTK文件头
+    // 1. 收集所有节点信息
+    std::unordered_map<int, Eigen::Vector2d> allNodes;
+    for (const auto& elemData : feDataSet) {
+        for (size_t i = 0; i < elemData.DofIndexs.size(); ++i) {
+            int nodeId = elemData.DofIndexs[i];
+            const auto& coord = elemData.NodeCoords[i];
+            allNodes[nodeId] = coord;
+        }
+    }
+    
+    // 2. 写入VTK文件头
     file << "# vtk DataFile Version 3.0\n";
     file << "Poisson Solver Output\n";
     file << "ASCII\n";
     file << "DATASET UNSTRUCTURED_GRID\n";
 
-    // 2. 写入点数据
-    file << "POINTS " << mesh.nodes.size() << " double\n";
-    for (const auto& node : mesh.nodes) {
-        file << node.x << " " << node.y << " 0.0" << "\n";
+    // 3. 写入点数据
+    file << "POINTS " << allNodes.size() << " double\n";
+    for (const auto& [nodeId, coord] : allNodes) {
+        file << coord.x() << " " << coord.y() << " 0.0\n";
     }
 
-    // 3. 写入单元数据
-    const auto& cells = mesh.elements;
-    size_t total_cell_size = 0;
-    for (const auto& cell : cells) {
-        total_cell_size += cell.get_num_nodes() + 1;
+    // 4. 写入单元数据
+    int mum_elementLine = 0;
+    for (const auto& elemData : feDataSet) {
+        mum_elementLine += elemData.DofIndexs.size();
     }
-    
-    file << "CELLS " << cells.size() << " " << total_cell_size << "\n";
-    for (const auto& cell : cells) {
-        file << cell.get_num_nodes();
-        for (int i = 0; i < cell.get_num_nodes(); i++) {
-            const int node_id = cell.nodePtrs[i]->id; // 使用节点ID
-            file << " " << node_id;
+    file << "CELLS " << feDataSet.size() << " " << (feDataSet.size() + mum_elementLine) << "\n";
+    for (const auto& elemData : feDataSet) {
+        file << elemData.DofIndexs.size();
+        for (int nodeId : elemData.DofIndexs) {
+            file << " " << nodeId;
         }
         file << "\n";
     }
     
-    // 4. 写入单元类型
-    file << "CELL_TYPES " << cells.size() << "\n";
-    for (size_t i = 0; i < cells.size(); i++) {
-        if (cells[i].get_num_nodes() == 4) {
+    // 5. 写入单元类型
+    file << "CELL_TYPES " << feDataSet.size() << "\n";
+    for (const auto& elemData : feDataSet) {
+        if (elemData.DofIndexs.size() == 4) {
             file << "9\n"; // VTK_QUAD
         } else {
             file << "5\n"; // VTK_TRIANGLE
         }
     }
 
-    // 5. 写入点数据（解u）
+    // 6. 写入点数据（解u）
     file << "POINT_DATA " << u.size() << "\n";
     file << "SCALARS u double 1\n";
     file << "LOOKUP_TABLE default\n";
@@ -265,6 +284,16 @@ void PoissonSolver::print_results(int max_display) const
 {
     int step = (u.size() > max_display) ? u.size() / max_display : 1;
     
+    // 收集所有节点信息
+    std::unordered_map<int, Eigen::Vector2d> allNodes;
+    for (const auto& elemData : feDataSet) {
+        for (size_t i = 0; i < elemData.DofIndexs.size(); ++i) {
+            int nodeId = elemData.DofIndexs[i];
+            const auto& coord = elemData.NodeCoords[i];
+            allNodes[nodeId] = coord;
+        }
+    }
+    
     std::cout << std::endl;
     std::cout << "================ 计算结果摘要 ================\n";
     std::cout << std::setw(10) << "节点ID" 
@@ -273,21 +302,29 @@ void PoissonSolver::print_results(int max_display) const
               << std::setw(15) << "U(X,Y)" 
               << std::setw(15) << "边界状态\n";
 
-    std::unordered_set<int> dirichlet_nodes_set(dirichlet_nodes.begin(), dirichlet_nodes.end()); // 方便后续查找
+    std::unordered_set<int> dirichlet_nodes_set(dirichlet_nodes.begin(), dirichlet_nodes.end());
 
-    for (int i = 0; i < u.size(); i += step) {
-        const auto& node = mesh.nodes[i];
-        bool is_boundary = (dirichlet_nodes_set.find(i) != dirichlet_nodes_set.end());
+    int count = 0;
+    for (const auto& [nodeId, coord] : allNodes) {
+        if (count % step != 0) {
+            count++;
+            continue;
+        }
         
-        std::cout << std::setw(10) << i
-                  << std::setw(12) << std::fixed << std::setprecision(4) << node.x
-                  << std::setw(12) << node.y
-                  << std::setw(15) << std::scientific << std::setprecision(6) << u(i)
+        bool is_boundary = (dirichlet_nodes_set.find(nodeId) != dirichlet_nodes_set.end());
+        
+        std::cout << std::setw(10) << nodeId
+                  << std::setw(12) << std::fixed << std::setprecision(4) << coord.x()
+                  << std::setw(12) << coord.y()
+                  << std::setw(15) << std::scientific << std::setprecision(6) << u(nodeId)
                   << std::setw(15) << (is_boundary ? "Dirichlet" : "Free") << std::endl;
+        
+        count++;
+        if (count >= max_display * step) break;
     }
     
-    if (step > 1) {
-        std::cout << "... 已省略 " << (u.size() - max_display) << " 个节点结果 ...\n";
+    if (allNodes.size() > max_display) {
+        std::cout << "... 已省略 " << (allNodes.size() - max_display) << " 个节点结果 ...\n";
     }
     
     double max_u = u.maxCoeff();
@@ -296,7 +333,7 @@ void PoissonSolver::print_results(int max_display) const
     
     // 统计边界节点数量
     std::cout << "边界点数量: " << dirichlet_nodes.size()
-              << " / " << mesh.nodes.size() << std::endl;
+              << " / " << allNodes.size() << std::endl;
     std::cout << "============================================\n";
 }
 

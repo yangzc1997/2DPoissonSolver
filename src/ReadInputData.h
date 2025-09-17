@@ -3,7 +3,6 @@
 #ifndef READINPUTDATA_H
 #define READINPUTDATA_H
 
-#include "Core_Export.h"
 #include "BoundaryData.h"
 #include <filesystem>
 #include <string>

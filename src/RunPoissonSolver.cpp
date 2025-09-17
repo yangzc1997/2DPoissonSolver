@@ -1,6 +1,11 @@
 // RunPoissonSolver.cpp
 #include "Core_Export.h"
+#include "Mesh.h"
 #include "RunPoissonSolver.h"
+#include "Auxiliary_MeshGenerator.h"
+#include "Auxiliary_SolvingParameterPreprocessing.h"
+#include "PoissonSolver_FiniteElementData.h"
+#include "PoissonSolver.h"
 #include <fstream>
 #include <iostream>
 #include <eigen3/Eigen/Dense>
@@ -29,32 +34,48 @@ bool RunPoissonSolver::simulate() {
     try {
         m_timer.start(); // 开始计时
 
-        // 创建网格
-        std::cout << "\n开始网格生成..." << std::endl;
-        m_mesh = std::make_unique<Mesh>(
+        // 网格生成
+        std::cout << "\n网格生成中..." << std::endl;
+        Mesh m_mesh = Auxiliary::MeshGenerator::generate_mesh(
                 m_readInputData->lx, m_readInputData->ly, 
                 m_readInputData->Nx, m_readInputData->Ny, 
                 m_readInputData->mesh_type
             );
-        // m_mesh->printInfo();
+        m_mesh.print_mesh_information();
 
-        // 处理边界条件
-        std::cout << "\n处理边界条件..." << std::endl;
-        m_boundaryCondition = std::make_unique<BoundaryCondition>(
-            *m_readInputData, *m_mesh
+        // 牛顿迭代求解前的预处理
+        std::cout << "\n求解预处理中..." << std::endl;
+
+        // 从网格中生成有限元
+        auto FiniteElements = Auxiliary::SolvingParameterPreprocessing::generate_FiniteElementDataSet(m_mesh);
+
+        // 获取初始解
+        auto u0 = Auxiliary::SolvingParameterPreprocessing::generate_initial_value_of_u(
+            FiniteElements, m_readInputData->bc, m_readInputData->initial_guess,
+            m_readInputData->lx, m_readInputData->ly
+        );
+        
+        // 生成D边界有限元节点编号（自由度）
+        auto dirichletNodes = Auxiliary::SolvingParameterPreprocessing::generate_dirichlet_nodeIDs(
+            FiniteElements, m_readInputData->bc,
+            m_readInputData->lx, m_readInputData->ly
         );
 
-        // 获取初始解和边界节点
-        const Eigen::VectorXd initialSolution = m_boundaryCondition->getInitialSolution();
-        const std::vector<int> dirichletNodes = m_boundaryCondition->getDirichletNodeID();
-    
+        // 源函数及其导数
+        auto source_func = Auxiliary::SolvingParameterPreprocessing::create_source_function(m_readInputData->source);
+        auto source_deriv_func = Auxiliary::SolvingParameterPreprocessing::create_source_derivative(m_readInputData->source_derivatives);
+
         // 创建求解器
-        m_solver = std::make_unique<PoissonSolver>(
-            *m_readInputData, *m_mesh, initialSolution, dirichletNodes
+        PoissonSolver m_solver(
+            FiniteElements, u0, 
+            dirichletNodes,
+            source_func, source_deriv_func,
+            m_readInputData->max_iter, m_readInputData->rel_tol,
+            m_readInputData->abs_tol, m_readInputData->output_file
         );
 
         // 求解
-        bool success = m_solver->solveByNewtonMethod();
+        bool success = m_solver.solveByNewtonMethod();
 
         /// 统计计算时长
         m_timer.pause();
@@ -62,8 +83,8 @@ bool RunPoissonSolver::simulate() {
 
         if (success) {
             // 输出结果
-            m_solver->output_results();
-            // m_solver->print_results();
+            m_solver.output_results();
+            // m_solver.print_results();
             return true;
         }
         return false;

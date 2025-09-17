@@ -2,9 +2,8 @@
 #ifndef MESH_H
 #define MESH_H
 
-#include "Core_Export.h"
 #include <vector>
-
+#include <cstddef>
 
 namespace Poisson{
 

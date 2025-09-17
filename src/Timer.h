@@ -2,14 +2,13 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-#include "Core_Export.h"
 #include <chrono>
 #include <string>
 
 namespace Poisson{
 
 /// @brief 计时器
-class POISSONCORE_API Timer {
+class Timer {
 public:
     Timer() = default;
     ~Timer() = default;

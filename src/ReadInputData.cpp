@@ -1,7 +1,6 @@
 // ReadInputData.cpp
 #include "ReadInputData.h"
 #include "../lib/json.hpp"
-#include "Core_Export.h"
 #include <stdexcept>
 #include <iostream>
 #include <array>
