@@ -1,7 +1,7 @@
 # ========== 基础配置 =========
 cmake_minimum_required(VERSION 3.16)
 project(PoissonSolvers 
-        VERSION 1.5.0
+        VERSION 1.6.0
         LANGUAGES CXX
         DESCRIPTION "Finite Element Method for 2D Poisson Equation")
 
@@ -47,12 +47,19 @@ target_sources(PoissonCore PRIVATE
     src/FiniteElementCalculator.h
     src/PoissonSolver.cpp
     src/PoissonSolver.h
+    src/PoissonSolver_FiniteElementData.h
     src/BoundaryData.h
+    src/UsingAlias.h
     src/RunPoissonSolver.cpp
     src/RunPoissonSolver.h
-    src/Auxiliary_module.cpp
-    src/Auxiliary_module.h
-    src/PoissonSolver_FiniteElementData.h
+    src/Auxiliary_ExpressionParser.cpp
+    src/Auxiliary_ExpressionParser.h
+    src/Auxiliary_Integrate2DLegendre.cpp
+    src/Auxiliary_Integrate2DLegendre.h
+    src/Auxiliary_MeshGenerator.cpp
+    src/Auxiliary_MeshGenerator.h
+    src/Auxiliary_SolvingParameterPreprocessing.cpp
+    src/Auxiliary_SolvingParameterPreprocessing.h
     src/Core_Export.h
 )
 
@@ -84,7 +91,7 @@ file(GLOB TEST_SOURCES CONFIGURE_DEPENDS
     ./test/test_ExpressionEvaluator.cpp  
     ./test/test_Mesh.cpp  
     ./test/test_ReadInputData.cpp
-    ./test/test_ElementCalculator.cpp
+    ./test/test_2DElementInterate.cpp
     )
 add_executable(PoissonTests ${TEST_SOURCES})
 target_link_libraries(PoissonTests PRIVATE PoissonCore gtest_main)
