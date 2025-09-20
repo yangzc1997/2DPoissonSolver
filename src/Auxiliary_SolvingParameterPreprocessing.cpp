@@ -15,7 +15,7 @@ namespace Auxiliary {
 namespace SolvingParameterPreprocessing {
 
     // 利用网格重新组织需要计算的有限单元
-    FiniteElementDataSet generate_FiniteElementDataSet(const class Mesh& mesh)
+    FiniteElementDataSet generate_FiniteElementDataSet(const Mesh& mesh)
     {
         FiniteElementDataSet dataSet;
         
